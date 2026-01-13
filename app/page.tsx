@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   ModConfig,
   generateModId,
   generateClassName,
   validatePackageName,
-  generateTemplate,
+  generateTemplateFromScratch,
 } from "@/lib/template-generator";
 
 // Native download function
 function downloadBlob(blob: Blob, filename: string) {
-  const zipBlob = new Blob([blob], { type: 'application/zip' });
+  const zipBlob = new Blob([blob], { type: "application/zip" });
   const url = URL.createObjectURL(zipBlob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-  a.style.display = 'none';
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {
@@ -25,64 +25,104 @@ function downloadBlob(blob: Blob, filename: string) {
   }, 1000);
 }
 
-// Simple Hytale-inspired logo
+// Cursor glow component
+function CursorGlow() {
+  const glowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (glowRef.current) {
+        glowRef.current.style.left = `${e.clientX}px`;
+        glowRef.current.style.top = `${e.clientY}px`;
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  return <div ref={glowRef} className="cursor-glow" />;
+}
+
+// Logo
 function Logo() {
   return (
-    <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
       <rect x="4" y="4" width="24" height="24" rx="4" fill="#ea580c" />
       <path d="M10 16L16 10L22 16L16 22L10 16Z" fill="white" />
     </svg>
   );
 }
 
-// Chevron icon
-function ChevronDown({ open }: { open: boolean }) {
+// Arrow icons
+function ArrowRight() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-    >
-      <path d="M6 9l6 6 6-6" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 12h14M12 5l7 7-7 7" />
     </svg>
   );
 }
 
+function ArrowLeft() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M19 12H5M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+// Check icon
+function CheckIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
+// Download icon
+function DownloadIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  );
+}
+
+// Wizard step types
+type WizardStep = "welcome" | "basics" | "options" | "review" | "complete";
+
 export default function Home() {
+  // Wizard state
+  const [step, setStep] = useState<WizardStep>("welcome");
+
   // Form state
-  const [modName, setModName] = useState("Example Mod");
-  const [useCustomId, setUseCustomId] = useState(false);
-  const [customModId, setCustomModId] = useState("");
+  const [modName, setModName] = useState("My Mod");
   const [packageName, setPackageName] = useState("com.example");
-  const [version, setVersion] = useState("1.0.0");
-  const [description, setDescription] = useState("A Hytale server mod");
-  const [authorName, setAuthorName] = useState("");
-  const [authorEmail, setAuthorEmail] = useState("");
-  const [website, setWebsite] = useState("");
   const [javaVersion, setJavaVersion] = useState("21");
-  const [serverVersion, setServerVersion] = useState("*");
+  const [description, setDescription] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [website, setWebsite] = useState("");
   const [includeExampleCommand, setIncludeExampleCommand] = useState(true);
   const [includeExampleEvent, setIncludeExampleEvent] = useState(true);
 
   // UI state
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Derived values
-  const modId = useCustomId ? customModId : generateModId(modName);
+  const modId = generateModId(modName);
   const className = generateClassName(modName);
   const isPackageValid = validatePackageName(packageName);
   const entryPoint = `${packageName}.${className}`;
 
+  const steps: WizardStep[] = ["welcome", "basics", "options", "review", "complete"];
+  const currentStepIndex = steps.indexOf(step);
+
   // Handle download
   const handleGenerate = useCallback(async () => {
     if (!isPackageValid) {
-      setError("Invalid package name. Use lowercase letters separated by dots.");
+      setError("Invalid package name");
       return;
     }
 
@@ -94,39 +134,65 @@ export default function Home() {
         modName,
         modId,
         packageName,
-        version,
-        description,
-        authorName: authorName || "Your Name",
-        authorEmail: authorEmail || "your.email@example.com",
+        version: "1.0.0",
+        description: description || `A Hytale mod`,
+        authorName: authorName || "Author",
+        authorEmail: "author@example.com",
         website: website || "https://example.com",
         javaVersion,
-        serverVersion,
+        serverVersion: "*",
         includeExampleCommand,
         includeExampleEvent,
       };
 
-      const blob = await generateTemplate(config, "/hytale-template.zip");
+      const blob = await generateTemplateFromScratch(config);
       downloadBlob(blob, `${className}.zip`);
+      setStep("complete");
     } catch (err) {
       console.error("Generation error:", err);
-      setError(err instanceof Error ? err.message : "Failed to generate template.");
+      setError(err instanceof Error ? err.message : "Failed to generate");
     } finally {
       setIsGenerating(false);
     }
-  }, [
-    modName, modId, packageName, version, description,
-    authorName, authorEmail, website, javaVersion, serverVersion,
-    includeExampleCommand, includeExampleEvent, className, isPackageValid,
-  ]);
+  }, [modName, modId, packageName, description, authorName, website, javaVersion, includeExampleCommand, includeExampleEvent, className, isPackageValid]);
+
+  const nextStep = () => {
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < steps.length) {
+      setStep(steps[nextIndex]);
+    }
+  };
+
+  const prevStep = () => {
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      setStep(steps[prevIndex]);
+    }
+  };
+
+  const resetWizard = () => {
+    setStep("welcome");
+    setModName("My Mod");
+    setPackageName("com.example");
+    setJavaVersion("21");
+    setDescription("");
+    setAuthorName("");
+    setWebsite("");
+    setIncludeExampleCommand(true);
+    setIncludeExampleEvent(true);
+    setError(null);
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
+      <CursorGlow />
+
       {/* Header */}
       <header className="header">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={resetWizard}>
             <Logo />
-            <span className="text-white font-semibold">Hytale Modding</span>
+            <span className="font-semibold">Hytale Modding</span>
           </div>
           <nav className="flex items-center gap-1">
             <a href="#" className="nav-link active">Template</a>
@@ -138,286 +204,336 @@ export default function Home() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
-        <h1 className="text-2xl font-bold mb-2">Template mod generator</h1>
-        <p className="text-[var(--text-muted)] mb-1">
-          Generate a customised template mod project for Hytale.
-        </p>
-        <p className="text-[var(--text-muted)] text-sm mb-6">
-          For setup instructions, see the project README. This template is available under the{" "}
-          <a href="https://creativecommons.org/publicdomain/zero/1.0/" className="link" target="_blank" rel="noopener noreferrer">
-            CC0 license
-          </a>.
-        </p>
-
-        {/* Form Card */}
-        <div className="card p-6">
-          {/* Mod Name */}
-          <div className="form-group">
-            <label htmlFor="modName" className="form-label">Mod Name:</label>
-            <p className="form-hint mb-2">
-              Choose a name for your new mod. The mod ID will be <code>{modId}</code>.{" "}
-              <button type="button" className="link" onClick={() => setUseCustomId(!useCustomId)}>
-                {useCustomId ? "Use default" : "Use custom id"}
-              </button>
-            </p>
-            <input
-              type="text"
-              id="modName"
-              className="form-input"
-              style={{ maxWidth: '280px' }}
-              value={modName}
-              onChange={(e) => setModName(e.target.value)}
-            />
-          </div>
-
-          {/* Custom Mod ID */}
-          {useCustomId && (
-            <div className="form-group">
-              <label htmlFor="modId" className="form-label">Custom Mod ID:</label>
-              <input
-                type="text"
-                id="modId"
-                className="form-input"
-                style={{ maxWidth: '280px' }}
-                value={customModId}
-                onChange={(e) => setCustomModId(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                placeholder="my_mod"
-              />
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+        {/* Welcome Screen */}
+        {step === "welcome" && (
+          <div className="hero">
+            <div className="float mb-8">
+              <Logo />
             </div>
-          )}
-
-          <div className="divider" />
-
-          {/* Package Name */}
-          <div className="form-group">
-            <label htmlFor="packageName" className="form-label">Package Name:</label>
-            <p className="form-hint mb-2">
-              Choose a unique package name for your mod. If unsure, use <code>name.{modId}</code>.
+            <h1>Create Your Hytale Mod</h1>
+            <p>
+              Generate a customized mod template in seconds.
+              We&apos;ll guide you through the setup step by step.
             </p>
-            <input
-              type="text"
-              id="packageName"
-              className="form-input"
-              style={{ maxWidth: '280px' }}
-              value={packageName}
-              onChange={(e) => setPackageName(e.target.value.toLowerCase())}
-            />
-            {!isPackageValid && packageName && (
-              <p className="text-red-600 text-sm mt-2">
-                Must be lowercase letters/numbers separated by dots (e.g., com.example.mod)
-              </p>
-            )}
-          </div>
-
-          <div className="divider" />
-
-          {/* Java Version */}
-          <div className="form-group">
-            <label htmlFor="javaVersion" className="form-label">Java Version:</label>
-            <p className="form-hint mb-2">
-              Select the Java version for development. Java 21 (LTS) is recommended.
+            <button className="btn-primary" onClick={nextStep}>
+              Get Started <ArrowRight />
+            </button>
+            <p className="text-sm text-[var(--text-muted)] mt-8">
+              Available under{" "}
+              <a href="https://creativecommons.org/publicdomain/zero/1.0/" className="link" target="_blank" rel="noopener noreferrer">
+                CC0 License
+              </a>
             </p>
-            <select
-              id="javaVersion"
-              className="form-select"
-              style={{ maxWidth: '200px' }}
-              value={javaVersion}
-              onChange={(e) => setJavaVersion(e.target.value)}
-            >
-              <option value="21">Java 21 (LTS)</option>
-              <option value="22">Java 22</option>
-              <option value="23">Java 23</option>
-              <option value="24">Java 24</option>
-              <option value="25">Java 25</option>
-            </select>
           </div>
+        )}
 
-          <div className="divider" />
-
-          {/* Advanced Options */}
-          <button
-            type="button"
-            className={`collapse-trigger ${showAdvanced ? 'open' : ''}`}
-            onClick={() => setShowAdvanced(!showAdvanced)}
-          >
-            <ChevronDown open={showAdvanced} />
-            Advanced Options
-          </button>
-
-          {showAdvanced && (
-            <div className="mt-4 space-y-5">
-              {/* Description */}
-              <div className="form-group !mb-0">
-                <label htmlFor="description" className="form-label">Description:</label>
-                <textarea
-                  id="description"
-                  className="form-input"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+        {/* Step: Basics */}
+        {step === "basics" && (
+          <div className="w-full max-w-md">
+            <div className="steps-indicator">
+              {steps.slice(1, -1).map((s, i) => (
+                <div
+                  key={s}
+                  className={`step-dot ${i === currentStepIndex - 1 ? "active" : ""} ${i < currentStepIndex - 1 ? "completed" : ""}`}
                 />
-              </div>
+              ))}
+            </div>
 
-              {/* Author fields */}
-              <div className="grid-2">
-                <div className="form-group !mb-0">
-                  <label htmlFor="authorName" className="form-label">Author Name:</label>
+            <div className="card p-6">
+              <h2 className="text-xl font-bold mb-2">Basic Information</h2>
+              <p className="text-[var(--text-muted)] text-sm mb-6">
+                Let&apos;s start with the essentials.
+              </p>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="form-label">Mod Name</label>
                   <input
                     type="text"
-                    id="authorName"
                     className="form-input"
-                    value={authorName}
-                    onChange={(e) => setAuthorName(e.target.value)}
-                    placeholder="Your Name"
+                    value={modName}
+                    onChange={(e) => setModName(e.target.value)}
+                    placeholder="My Awesome Mod"
                   />
+                  <p className="form-hint">
+                    ID: <code>{modId}</code>
+                  </p>
                 </div>
-                <div className="form-group !mb-0">
-                  <label htmlFor="authorEmail" className="form-label">Author Email:</label>
+
+                <div>
+                  <label className="form-label">Package Name</label>
                   <input
-                    type="email"
-                    id="authorEmail"
-                    className="form-input"
-                    value={authorEmail}
-                    onChange={(e) => setAuthorEmail(e.target.value)}
-                    placeholder="you@example.com"
+                    type="text"
+                    className={`form-input ${!isPackageValid && packageName ? "border-red-500" : ""}`}
+                    value={packageName}
+                    onChange={(e) => setPackageName(e.target.value.toLowerCase())}
+                    placeholder="com.yourname.modid"
                   />
+                  {!isPackageValid && packageName && (
+                    <p className="form-hint text-red-500">
+                      Invalid format. Use lowercase letters and dots.
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="form-label">Java Version</label>
+                  <select
+                    className="form-select"
+                    value={javaVersion}
+                    onChange={(e) => setJavaVersion(e.target.value)}
+                  >
+                    <option value="21">Java 21 (LTS - Recommended)</option>
+                    <option value="22">Java 22</option>
+                    <option value="23">Java 23</option>
+                    <option value="24">Java 24</option>
+                    <option value="25">Java 25</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Website */}
-              <div className="form-group !mb-0">
-                <label htmlFor="website" className="form-label">Website:</label>
-                <input
-                  type="url"
-                  id="website"
-                  className="form-input"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  placeholder="https://example.com"
-                />
-              </div>
-
-              {/* Version */}
-              <div className="form-group !mb-0">
-                <label htmlFor="version" className="form-label">Mod Version:</label>
-                <input
-                  type="text"
-                  id="version"
-                  className="form-input"
-                  style={{ maxWidth: '120px' }}
-                  value={version}
-                  onChange={(e) => setVersion(e.target.value)}
-                />
-              </div>
-
-              <div className="divider" />
-
-              {/* Example code options */}
-              <div>
-                <p className="form-label mb-3">Include Example Code:</p>
-
-                <label className="flex items-start gap-3 cursor-pointer mb-3">
-                  <input
-                    type="checkbox"
-                    className="form-checkbox"
-                    checked={includeExampleCommand}
-                    onChange={(e) => setIncludeExampleCommand(e.target.checked)}
-                  />
-                  <div>
-                    <span className="font-medium">Example Command</span>
-                    <p className="checkbox-desc">
-                      A basic in-game command to get you started with the command API.
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="form-checkbox"
-                    checked={includeExampleEvent}
-                    onChange={(e) => setIncludeExampleEvent(e.target.checked)}
-                  />
-                  <div>
-                    <span className="font-medium">Example Event Handler</span>
-                    <p className="checkbox-desc">
-                      A PlayerReadyEvent handler that welcomes players when they join.
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </div>
-          )}
-
-          <div className="divider" />
-
-          {/* Preview */}
-          <div className="form-group !mb-0">
-            <p className="form-label mb-2">Preview:</p>
-            <div className="code-box text-sm">
-              <div className="mb-2">
-                <span className="path">Entry point:</span>{" "}
-                <span className="file">{entryPoint}</span>
-              </div>
-              <div className="space-y-0.5">
-                <div><span className="path">src/main/java/{packageName.replace(/\./g, '/')}/</span></div>
-                <div className="pl-4"><span className="file">{className}.java</span></div>
-                {includeExampleCommand && (
-                  <>
-                    <div className="pl-4"><span className="path">commands/</span></div>
-                    <div className="pl-8"><span className="file-cmd">{className}Command.java</span></div>
-                  </>
-                )}
-                {includeExampleEvent && (
-                  <>
-                    <div className="pl-4"><span className="path">events/</span></div>
-                    <div className="pl-8"><span className="file-event">{className}Event.java</span></div>
-                  </>
-                )}
+              <div className="flex gap-3 mt-8">
+                <button className="btn-secondary flex-1" onClick={prevStep}>
+                  <ArrowLeft /> Back
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  onClick={nextStep}
+                  disabled={!isPackageValid || !modName}
+                >
+                  Continue <ArrowRight />
+                </button>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="divider" />
-
-          {/* Error */}
-          {error && (
-            <div className="error-box mb-4">
-              {error}
+        {/* Step: Options */}
+        {step === "options" && (
+          <div className="w-full max-w-md">
+            <div className="steps-indicator">
+              {steps.slice(1, -1).map((s, i) => (
+                <div
+                  key={s}
+                  className={`step-dot ${i === currentStepIndex - 1 ? "active" : ""} ${i < currentStepIndex - 1 ? "completed" : ""}`}
+                />
+              ))}
             </div>
-          )}
 
-          {/* Download Button */}
-          <button
-            type="button"
-            className="btn-primary w-full"
-            onClick={handleGenerate}
-            disabled={isGenerating || !isPackageValid}
-          >
-            {isGenerating ? (
-              <>
-                <span className="spinner" />
-                Generating...
-              </>
-            ) : (
-              "Download Template (.ZIP)"
-            )}
-          </button>
-        </div>
+            <div className="card p-6">
+              <h2 className="text-xl font-bold mb-2">Choose Options</h2>
+              <p className="text-[var(--text-muted)] text-sm mb-6">
+                Select what to include in your template.
+              </p>
+
+              <div className="space-y-3">
+                <label
+                  className={`option-card ${includeExampleCommand ? "selected" : ""}`}
+                  onClick={() => setIncludeExampleCommand(!includeExampleCommand)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={includeExampleCommand}
+                    onChange={() => { }}
+                  />
+                  <div>
+                    <div className="font-medium">Example Command</div>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">
+                      A basic in-game command to help you learn the API.
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={`option-card ${includeExampleEvent ? "selected" : ""}`}
+                  onClick={() => setIncludeExampleEvent(!includeExampleEvent)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={includeExampleEvent}
+                    onChange={() => { }}
+                  />
+                  <div>
+                    <div className="font-medium">Example Event Handler</div>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">
+                      Welcomes players when they join the server.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-[var(--card-border)]">
+                <p className="text-sm text-[var(--text-muted)] mb-4">Optional details</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="form-label">Description</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="A short description..."
+                    />
+                  </div>
+                  <div className="grid-2">
+                    <div>
+                      <label className="form-label">Author</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={authorName}
+                        onChange={(e) => setAuthorName(e.target.value)}
+                        placeholder="Your name"
+                      />
+                    </div>
+                    <div>
+                      <label className="form-label">Website</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button className="btn-secondary flex-1" onClick={prevStep}>
+                  <ArrowLeft /> Back
+                </button>
+                <button className="btn-primary flex-1" onClick={nextStep}>
+                  Continue <ArrowRight />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Review */}
+        {step === "review" && (
+          <div className="w-full max-w-md">
+            <div className="steps-indicator">
+              {steps.slice(1, -1).map((s, i) => (
+                <div
+                  key={s}
+                  className={`step-dot ${i === currentStepIndex - 1 ? "active" : ""} ${i < currentStepIndex - 1 ? "completed" : ""}`}
+                />
+              ))}
+            </div>
+
+            <div className="card p-6">
+              <h2 className="text-xl font-bold mb-2">Review & Download</h2>
+              <p className="text-[var(--text-muted)] text-sm mb-6">
+                Everything looks good? Let&apos;s generate your mod!
+              </p>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex justify-between py-2 border-b border-[var(--card-border)]">
+                  <span className="text-[var(--text-muted)]">Mod Name</span>
+                  <span className="font-medium">{modName}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-[var(--card-border)]">
+                  <span className="text-[var(--text-muted)]">Package</span>
+                  <span className="font-mono text-sm">{packageName}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-[var(--card-border)]">
+                  <span className="text-[var(--text-muted)]">Java Version</span>
+                  <span>Java {javaVersion}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-[var(--card-border)]">
+                  <span className="text-[var(--text-muted)]">Example Code</span>
+                  <span>
+                    {includeExampleCommand && includeExampleEvent
+                      ? "Command + Event"
+                      : includeExampleCommand
+                        ? "Command only"
+                        : includeExampleEvent
+                          ? "Event only"
+                          : "None"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="code-box text-sm mb-6">
+                <div className="mb-2">
+                  <span className="path">Entry:</span>{" "}
+                  <span className="file">{entryPoint}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <div><span className="path">src/.../</span><span className="file">{className}.java</span></div>
+                  {includeExampleCommand && (
+                    <div><span className="path">commands/</span><span className="file-cmd">{className}Command.java</span></div>
+                  )}
+                  {includeExampleEvent && (
+                    <div><span className="path">events/</span><span className="file-event">{className}Event.java</span></div>
+                  )}
+                </div>
+              </div>
+
+              {error && (
+                <div className="error-box mb-4">{error}</div>
+              )}
+
+              <div className="flex gap-3">
+                <button className="btn-secondary flex-1" onClick={prevStep}>
+                  <ArrowLeft /> Back
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  onClick={handleGenerate}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <span className="spinner" /> Generating...
+                    </>
+                  ) : (
+                    <>
+                      <DownloadIcon /> Download
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Complete */}
+        {step === "complete" && (
+          <div className="text-center max-w-md px-4">
+            <div className="success-check inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500 text-white mb-6">
+              <CheckIcon />
+            </div>
+            <h2 className="text-2xl font-bold mb-3">Download Started!</h2>
+            <p className="text-[var(--text-muted)] mb-8">
+              Your <strong>{className}.zip</strong> template is downloading.
+              Extract it and run <code>./gradlew build</code> to get started.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button className="btn-secondary" onClick={resetWizard}>
+                Create Another
+              </button>
+              <a
+                href="https://hytale.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary"
+              >
+                Visit Hytale ↗
+              </a>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="footer py-6 mt-8">
-        <div className="max-w-2xl mx-auto px-4 text-center text-sm text-[var(--text-muted)]">
-          <p className="mb-2">
-            This template is available under the{" "}
-            <a href="https://creativecommons.org/publicdomain/zero/1.0/" className="link" target="_blank" rel="noopener noreferrer">
-              CC0 License
-            </a>.
-          </p>
-          <p className="text-xs opacity-70">
-            NOT AN OFFICIAL HYTALE PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH HYPIXEL STUDIOS.
-          </p>
+      <footer className="footer py-4">
+        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-[var(--text-muted)]">
+          <p>NOT AN OFFICIAL HYTALE PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH HYPIXEL STUDIOS.</p>
         </div>
       </footer>
     </div>
